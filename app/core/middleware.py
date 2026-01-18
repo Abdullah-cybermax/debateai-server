@@ -6,10 +6,10 @@ from fastapi import Request
 
 def is_authenticated(request: Request):
     token = request.cookies.get("access_token")
-    if redis_client.get(f"blacklist:{token}"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked"
-        )
+   # if redis_client.get(f"blacklist:{token}"):
+      #  raise HTTPException(
+           # status_code=status.HTTP_401_UNAUTHORIZED, detail="Token revoked"
+      #  )
 
     if not isinstance(token, str):
         raise HTTPException(
