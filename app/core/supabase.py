@@ -2,8 +2,8 @@ import os
 from supabase import create_client, Client
 from core.logger import logger
 
-supabase_url = os.getenv("SUPABASE_URL")
-supabase_key = os.getenv("SUPABASE_KEY")
+supabase_url = 'https://urlsuevahaaldylnarzm.supabase.co'
+supabase_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVybHN1ZXZhaGFhbGR5bG5hcnptIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Mzg3OTk0NywiZXhwIjoyMDc5NDU1OTQ3fQ.nsHnMClVaCk6XaQSoANOO_piRNkdFWvUqeaZt1qDhD8'
 
 supabase: Client = create_client(
     supabase_url=supabase_url, supabase_key=supabase_key

@@ -1,7 +1,8 @@
 import io
+import os
 from time import time
+from xml.sax.saxutils import escape
 from transformers import pipeline
-from core.supabase import upload_pdf_to_supabase
 from modules.summerization.repository import SummerizationRepository
 from modules.arguments.service import ArgumentService
 from modules.argument_segmentation.service import ArgumentSegmentationService
@@ -10,6 +11,9 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
 from core.logger import logger
+
+REPORTS_DIR = "storage/reports"
+os.makedirs(REPORTS_DIR, exist_ok=True)
 
 
 class SummerizationService:
@@ -56,9 +60,10 @@ class SummerizationService:
             if item["role"].value == "neutral"
         ]
 
-        def summarize_segments(segments: str):
+        def summarize_segments(segments: list) -> str:
+            # Always returns a plain string now — no more dict/str mismatch
             if not segments:
-                return {"summary_text": "No point is provided."}
+                return "No point is provided."
 
             combined_text = " ".join(segments)
 
@@ -74,15 +79,18 @@ class SummerizationService:
         res_data = {
             "pros": summarize_segments(pros),
             "cons": summarize_segments(cons),
-            "neutral": summarize_segments(neutral)["summary_text"],
+            "neutral": summarize_segments(neutral),
         }
 
-        public_url = self.generate_pdf_report(debate_id, res_data)
-        self.repo.create_summary(debate_id=debate_id, url=public_url)
+        file_name = self.generate_pdf_report(debate_id, res_data)
+        self.repo.create_summary(debate_id=debate_id, url=file_name)
 
         return res_data
 
     def generate_pdf_report(self, debate_id: int, data: dict) -> str:
+        """Builds the PDF and saves it to local storage. Returns the file_name
+        (not a path/URL) — the download endpoint resolves this against
+        REPORTS_DIR, so the DB never stores a filesystem-specific path."""
 
         try:
             logger.info(f"📄 Generating PDF report for debate {debate_id}")
@@ -91,7 +99,6 @@ class SummerizationService:
             doc = SimpleDocTemplate(buffer, pagesize=A4)
             elements = []
 
-            # Add content to PDF
             styles = getSampleStyleSheet()
             normal = styles["Normal"]
             heading = styles["Heading2"]
@@ -102,41 +109,29 @@ class SummerizationService:
             elements.append(Spacer(1, 16))
 
             elements.append(Paragraph("Arguments For:", heading))
-            elements.append(Paragraph(data.get("pros", ""), normal))
+            elements.append(Paragraph(escape(data.get("pros", "")), normal))
             elements.append(Spacer(1, 12))
 
-            # Cons
             elements.append(Paragraph("Arguments Against:", heading))
-            elements.append(Paragraph(data.get("cons", ""), normal))
+            elements.append(Paragraph(escape(data.get("cons", "")), normal))
             elements.append(Spacer(1, 12))
 
-            # Neutral
             elements.append(Paragraph("Neutral Points:", heading))
-            elements.append(Paragraph(data.get("neutral", ""), normal))
+            elements.append(Paragraph(escape(data.get("neutral", "")), normal))
             elements.append(Spacer(1, 12))
 
-            # Build PDF
             doc.build(elements)
-
-            # Reset buffer position
             buffer.seek(0)
 
-            # Generate file name
             file_name = f"debate_summary_{debate_id}_{int(time())}.pdf"
+            file_path = os.path.join(REPORTS_DIR, file_name)
 
-            # Upload to Supabase with error handling
-            try:
-                public_url = upload_pdf_to_supabase(buffer.getvalue(), file_name)
-                logger.info(f"✅ PDF report generated and uploaded: {public_url}")
-                return public_url
-            except Exception as upload_error:
-                logger.error(f"❌ Failed to upload PDF: {upload_error}")
-                # Fallback: save locally for debugging
-                local_path = f"debug_{file_name}"
-                with open(local_path, "wb") as f:
-                    f.write(buffer.getvalue())
-                logger.info(f"💾 PDF saved locally for debugging: {local_path}")
-                raise
+            with open(file_path, "wb") as f:
+                f.write(buffer.getvalue())
+
+            logger.info(f"✅ PDF saved locally: {file_path}")
+
+            return file_name
 
         except Exception as e:
             logger.error(f"❌ PDF generation failed: {str(e)}")
@@ -144,3 +139,11 @@ class SummerizationService:
 
     def get_summary(self, debate_id: int):
         return self.repo.get_summary(debate_id=debate_id)
+
+    def get_report_path(self, debate_id: int) -> str | None:
+        """Resolves the stored file_name to a full local path for serving."""
+        file_name = self.repo.get_summary(debate_id=debate_id)
+        if not file_name:
+            return None
+        file_path = os.path.join(REPORTS_DIR, file_name)
+        return file_path if os.path.exists(file_path) else None

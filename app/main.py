@@ -33,6 +33,9 @@ from modules.users.controller import router as users_router
 @asynccontextmanager
 async def startup_event(app: FastAPI):
     try:
+        import nltk
+        nltk.download('punkt_tab')
+        nltk.download('punkt')
         with engine.connect() as conn:
             logger.info("✅ Database connected successfully!")
 

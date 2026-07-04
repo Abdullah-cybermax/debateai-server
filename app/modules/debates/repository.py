@@ -8,7 +8,7 @@ from core.logger import logger
 from core.exceptions import DatabaseConnectionError
 from modules.debates.schemas import DebateResponse
 from fastapi import HTTPException
-from app.utils.constant import MAX_PARTICIPANTS, ROLE_LIMITS
+from utils.constant import MAX_PARTICIPANTS, ROLE_LIMITS
 
 
 class DebateRepository:
